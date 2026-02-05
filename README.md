@@ -11,11 +11,19 @@ GitHub repository management plugin for OpenCode. Automatically clones repositor
 
 ## Installation
 
-Add to your OpenCode configuration (`~/.config/opencode/config.json`):
+Install via npm/bun:
+
+```bash
+bunx opencode-ask-github
+# or
+npx opencode-ask-github
+```
+
+Or add manually to your OpenCode configuration (`~/.config/opencode/config.json`):
 
 ```json
 {
-  "plugins": ["D:/projects/opencode-ask-github"]
+  "plugins": ["opencode-ask-github"]
 }
 ```
 

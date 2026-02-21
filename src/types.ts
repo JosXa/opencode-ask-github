@@ -4,8 +4,11 @@ export type AliasMap = Record<string, string>;
 
 export interface PromptConfig {
   /**
-   * The instruction that tells the AI how to delegate. Use {path} placeholder.
-   * Default: "Delegate to an @explore subagent to answer the following question about the repository at `{path}`:"
+   * The instruction that tells the AI how to delegate.
+   * Placeholders:
+   * - {name}: repository display name (typically "owner/repo")
+   * - {path}: local checkout path
+   * Default: "The {name} repo is now checked out at {path}. Use a subagent to answer this question:"
    */
   delegateInstruction: string;
   /**

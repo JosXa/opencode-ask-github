@@ -1,12 +1,6 @@
 import { getPromptConfig, loadConfig } from "../config";
 import { showToast } from "../notification";
-import {
-  cloneRepo,
-  getRepoPath,
-  isCloned,
-  listClonedRepos,
-  updateRepo,
-} from "../repo-manager";
+import { cloneRepo, getRepoPath, isCloned, listClonedRepos, updateRepo } from "../repo-manager";
 import { formatRepo, parseRepoInput } from "../repo-parser";
 import type { CommandContext } from "../types";
 
@@ -14,18 +8,14 @@ import type { CommandContext } from "../types";
  * Handle /github-ask command.
  * Clone repo if needed, then delegate to explore subagent.
  */
-export async function handleAsk(
-  args: string,
-  ctx: CommandContext,
-): Promise<void> {
+export async function handleAsk(args: string, ctx: CommandContext): Promise<void> {
   const { client, directory, sessionId } = ctx;
   const config = loadConfig();
 
   // Parse args: first token is repo, rest is question
   const tokens = args.trim().split(/\s+/);
   const repoInput = tokens[0];
-  const question =
-    tokens.slice(1).join(" ") || "provide an overview of this repository";
+  const question = tokens.slice(1).join(" ") || "provide an overview of this repository";
 
   if (!repoInput) {
     await injectMessage(
@@ -75,13 +65,7 @@ _Tip: You can add an alias for quick access using the github-alias-add tool._`;
   // Prepare the repo (clone or update)
   if (!alreadyCloned) {
     // Clone flow
-    await injectMessage(
-      client,
-      sessionId,
-      directory,
-      `Preparing ${repoDisplay}...`,
-      true,
-    );
+    await injectMessage(client, sessionId, directory, `Preparing ${repoDisplay}...`, true);
 
     await showToast(ctx, {
       message: `Cloning ${repoDisplay}...`,
@@ -112,13 +96,7 @@ _Tip: You can add an alias for quick access using the github-alias-add tool._`;
     });
   } else {
     // Update flow
-    await injectMessage(
-      client,
-      sessionId,
-      directory,
-      `Preparing ${repoDisplay}...`,
-      true,
-    );
+    await injectMessage(client, sessionId, directory, `Preparing ${repoDisplay}...`, true);
 
     await showToast(ctx, {
       message: `Updating ${repoDisplay}...`,
@@ -151,14 +129,10 @@ _Tip: You can add an alias for quick access using the github-alias-add tool._`;
 
   // Delegate to explore subagent
   const promptConfig = getPromptConfig(config);
-  const instruction = promptConfig.delegateInstruction.replace(
-    "{path}",
-    localPath,
-  );
-  const explorePrompt = promptConfig.exploreTemplate.replace(
-    "{question}",
-    question,
-  );
+  const instruction = promptConfig.delegateInstruction
+    .replace("{name}", repoDisplay)
+    .replace("{path}", localPath);
+  const explorePrompt = promptConfig.exploreTemplate.replace("{question}", question);
 
   await client.session.prompt({
     path: { id: sessionId },
@@ -182,9 +156,7 @@ function formatAliases(aliases: Record<string, string>): string {
   if (entries.length === 0) {
     return "_No aliases configured_";
   }
-  return entries
-    .map(([alias, repo]) => `- \`${alias}\` → \`${repo}\``)
-    .join("\n");
+  return entries.map(([alias, repo]) => `- \`${alias}\` → \`${repo}\``).join("\n");
 }
 
 async function injectMessage(

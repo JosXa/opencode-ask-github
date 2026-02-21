@@ -1,6 +1,6 @@
 {
   "name": "opencode-ask-github",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "GitHub repository management plugin for OpenCode - auto-clone repos and analyze with AI",
   "type": "module",
   "main": "dist/index.js",

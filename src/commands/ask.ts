@@ -1,12 +1,11 @@
-import { getPromptConfig, loadConfig } from "../config";
-import { showToast } from "../notification";
-import { cloneRepo, getRepoPath, isCloned, listClonedRepos, updateRepo } from "../repo-manager";
+import { loadConfig } from "../config";
+import { listClonedRepos } from "../repo-manager";
 import { formatRepo, parseRepoInput } from "../repo-parser";
 import type { CommandContext } from "../types";
 
 /**
- * Handle /github-ask command.
- * Clone repo if needed, then delegate to explore subagent.
+ * Handle /gh-ask command.
+ * Injects a message nudging the LLM to use the gh-ask tool.
  */
 export async function handleAsk(args: string, ctx: CommandContext): Promise<void> {
   const { client, directory, sessionId } = ctx;
@@ -15,14 +14,14 @@ export async function handleAsk(args: string, ctx: CommandContext): Promise<void
   // Parse args: first token is repo, rest is question
   const tokens = args.trim().split(/\s+/);
   const repoInput = tokens[0];
-  const question = tokens.slice(1).join(" ") || "provide an overview of this repository";
+  const question = tokens.slice(1).join(" ");
 
   if (!repoInput) {
     await injectMessage(
       client,
       sessionId,
       directory,
-      `Usage: /github-ask <repo> [question]
+      `Usage: /gh-ask <repo> [question]
 
 **repo** can be:
 - GitHub URL: \`https://github.com/owner/repo\`
@@ -35,12 +34,16 @@ ${formatAliases(config.aliases)}`,
     return;
   }
 
-  // Parse the repo input (with cloned repos for substring matching)
+  // Resolve the repo so we can show a clean name in the nudge
   const clonedRepos = listClonedRepos();
   const parseResult = parseRepoInput(repoInput, config.aliases, clonedRepos);
 
   if (!parseResult.repoInfo) {
-    const errorMsg = `Could not parse repository: \`${repoInput}\`
+    await injectMessage(
+      client,
+      sessionId,
+      directory,
+      `Could not parse repository: \`${repoInput}\`
 
 Expected formats:
 - \`https://github.com/owner/repo\`
@@ -49,106 +52,19 @@ Expected formats:
 - Substring of a cloned repo name
 
 **Configured aliases:**
-${formatAliases(config.aliases)}
-
-_Tip: You can add an alias for quick access using the github-alias-add tool._`;
-
-    await injectMessage(client, sessionId, directory, errorMsg);
+${formatAliases(config.aliases)}`,
+    );
     return;
   }
 
-  const repoInfo = parseResult.repoInfo;
-  const repoDisplay = formatRepo(repoInfo);
-  const localPath = getRepoPath(repoInfo);
-  const alreadyCloned = isCloned(repoInfo);
+  const repoDisplay = formatRepo(parseResult.repoInfo);
 
-  // Prepare the repo (clone or update)
-  if (!alreadyCloned) {
-    // Clone flow
-    await injectMessage(client, sessionId, directory, `Preparing ${repoDisplay}...`, true);
+  // Nudge the LLM to use the gh-ask tool
+  const nudge = question
+    ? `Please use the gh-ask tool on repository \`${repoDisplay}\` to answer:\n${question}`
+    : `Please use the gh-ask tool to prepare repository \`${repoDisplay}\` for exploration.`;
 
-    await showToast(ctx, {
-      message: `Cloning ${repoDisplay}...`,
-      variant: "info",
-    });
-    const result = await cloneRepo(repoInfo);
-
-    if (!result.success) {
-      await showToast(ctx, {
-        title: "Clone failed",
-        message: result.error ?? "Unknown error",
-        variant: "error",
-      });
-      await injectMessage(
-        client,
-        sessionId,
-        directory,
-        `Failed to clone ${repoDisplay}:\n\`\`\`\n${result.error}\n\`\`\``,
-      );
-      return;
-    }
-
-    await showToast(ctx, {
-      title: "Cloned",
-      message: repoDisplay,
-      variant: "success",
-      duration: 3000,
-    });
-  } else {
-    // Update flow
-    await injectMessage(client, sessionId, directory, `Preparing ${repoDisplay}...`, true);
-
-    await showToast(ctx, {
-      message: `Updating ${repoDisplay}...`,
-      variant: "info",
-    });
-    const result = await updateRepo(repoInfo);
-
-    if (!result.success) {
-      await showToast(ctx, {
-        title: "Update failed",
-        message: result.error ?? "Unknown error",
-        variant: "error",
-      });
-      await injectMessage(
-        client,
-        sessionId,
-        directory,
-        `Failed to update ${repoDisplay}:\n\`\`\`\n${result.error}\n\`\`\``,
-      );
-      return;
-    }
-
-    await showToast(ctx, {
-      title: "Updated",
-      message: repoDisplay,
-      variant: "success",
-      duration: 3000,
-    });
-  }
-
-  // Delegate to explore subagent
-  const promptConfig = getPromptConfig(config);
-  const instruction = promptConfig.delegateInstruction
-    .replace("{name}", repoDisplay)
-    .replace("{path}", localPath);
-  const explorePrompt = promptConfig.exploreTemplate.replace("{question}", question);
-
-  await client.session.prompt({
-    path: { id: sessionId },
-    body: {
-      parts: [
-        {
-          type: "text",
-          text: `${instruction}
----
-${explorePrompt}
----`,
-        },
-      ],
-    },
-    query: { directory },
-  });
+  await injectMessage(client, sessionId, directory, nudge);
 }
 
 function formatAliases(aliases: Record<string, string>): string {

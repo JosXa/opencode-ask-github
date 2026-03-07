@@ -3,9 +3,15 @@ import { tool } from "@opencode-ai/plugin";
 import { handleAsk } from "./src/commands/ask";
 import { handleList } from "./src/commands/list";
 import { handleRemove } from "./src/commands/remove";
-import { loadConfig, saveConfig } from "./src/config";
-import { getRepoPath, isCloned, listClonedRepos } from "./src/repo-manager";
-import { parseRepoInput } from "./src/repo-parser";
+import { getPromptConfig, loadConfig } from "./src/config";
+import {
+  cloneRepo,
+  getRepoPath,
+  isCloned,
+  listClonedRepos,
+  updateRepo,
+} from "./src/repo-manager";
+import { formatRepo, parseRepoInput } from "./src/repo-parser";
 import type { CommandContext } from "./src/types";
 
 /** Marker error to indicate command was handled */
@@ -76,78 +82,44 @@ export const AskGithubPlugin: Plugin = async ({ client, $, directory }) => {
     },
 
     tool: {
-      "gh-alias-add": tool({
-        description: "Add a GitHub repository alias for quick access with /gh-ask",
+      "gh-ask": tool({
+        description:
+          "Prepare a GitHub repo for exploration. Clones or updates locally. Accepts owner/repo, URLs, or aliases.",
         args: {
-          alias: tool.schema.string("Short name for the alias (e.g., 'sv')"),
-          target: tool.schema.string("Repository in owner/repo format (e.g., 'sveltejs/svelte')"),
+          repo: tool.schema.string("Repository (owner/repo, URL, or alias)"),
         },
         async execute(args) {
           const config = loadConfig();
-          config.aliases[args.alias] = args.target;
-          saveConfig(config);
-          return `Added alias: ${args.alias} → ${args.target}`;
-        },
-      }),
-
-      "gh-alias-remove": tool({
-        description: "Remove a GitHub repository alias",
-        args: {
-          alias: tool.schema.string("The alias to remove"),
-        },
-        async execute(args) {
-          const config = loadConfig();
-          if (!config.aliases[args.alias]) {
-            return `Alias '${args.alias}' not found`;
-          }
-          delete config.aliases[args.alias];
-          saveConfig(config);
-          return `Removed alias: ${args.alias}`;
-        },
-      }),
-
-      "gh-alias-list": tool({
-        description: "List all configured GitHub repository aliases",
-        args: {},
-        async execute() {
-          const config = loadConfig();
-          const entries = Object.entries(config.aliases);
-          if (entries.length === 0) {
-            return "No aliases configured";
-          }
-          return entries.map(([alias, repo]) => `${alias} → ${repo}`).join("\n");
-        },
-      }),
-
-      "gh-repo-info": tool({
-        description: "Get information about a GitHub repository (whether cloned, local path)",
-        args: {
-          repo: tool.schema.string("Repository URL, owner/repo, or alias"),
-        },
-        async execute(args) {
-          const config = loadConfig();
+          const promptConfig = getPromptConfig(config);
           const clonedRepos = listClonedRepos();
           const result = parseRepoInput(args.repo, config.aliases, clonedRepos);
 
           if (!result.repoInfo) {
-            return `Could not parse: ${args.repo}`;
+            const aliases = Object.entries(config.aliases);
+            const aliasHint =
+              aliases.length > 0
+                ? `\nConfigured aliases: ${aliases.map(([a, r]) => `${a}=${r}`).join(", ")}`
+                : "";
+            return `Could not resolve repository: ${args.repo}${aliasHint}`;
           }
 
           const info = result.repoInfo;
-          const cloned = isCloned(info);
-          const path = getRepoPath(info);
+          const display = formatRepo(info);
+          const localPath = getRepoPath(info);
 
-          return JSON.stringify(
-            {
-              owner: info.owner,
-              repo: info.repo,
-              url: info.url,
-              cloned,
-              localPath: cloned ? path : null,
-            },
-            null,
-            2,
-          );
+          if (isCloned(info)) {
+            const updateResult = await updateRepo(info);
+            if (!updateResult.success) {
+              return `Failed to update ${display}: ${updateResult.error}`;
+            }
+          } else {
+            const cloneResult = await cloneRepo(info);
+            if (!cloneResult.success) {
+              return `Failed to clone ${display}: ${cloneResult.error}`;
+            }
+          }
+
+          return `${display} is ready at ${localPath}.\nUse the @${promptConfig.agent} subagent to answer questions about this codebase.`;
         },
       }),
     },

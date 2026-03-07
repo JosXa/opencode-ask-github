@@ -8,9 +8,7 @@ const CONFIG_FILE = join(CONFIG_DIR, "ask-github.json");
 const CACHE_DIR = join(homedir(), ".cache", "opencode-github");
 
 const DEFAULT_PROMPT: PromptConfig = {
-  delegateInstruction:
-    "The {name} repo is now checked out at {path}. Use a subagent to answer this question:",
-  exploreTemplate: "{question}",
+  agent: "explore",
 };
 
 export function getConfigPath(): string {
@@ -50,8 +48,7 @@ export function loadConfig(): Config {
 
 export function getPromptConfig(config: Config): PromptConfig {
   return {
-    delegateInstruction: config.prompt?.delegateInstruction ?? DEFAULT_PROMPT.delegateInstruction,
-    exploreTemplate: config.prompt?.exploreTemplate ?? DEFAULT_PROMPT.exploreTemplate,
+    agent: config.prompt?.agent ?? DEFAULT_PROMPT.agent,
   };
 }
 

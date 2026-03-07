@@ -1,6 +1,6 @@
 # opencode-ask-github
 
-GitHub repository management plugin for OpenCode. Automatically clones repositories and delegates analysis to AI subagents.
+GitHub repository exploration plugin for OpenCode. Clones repositories on-demand and delegates analysis to AI subagents.
 
 ## Features
 
@@ -29,15 +29,17 @@ Or add manually to your OpenCode configuration (`~/.config/opencode/config.json`
 
 ## Commands
 
-### `/github-ask <repo> [question]`
+### `/gh-ask <repo> [question]`
 
 Clone/locate a repository and analyze it with AI.
 
 ```
-/github-ask sveltejs/svelte how is the component compiler structured?
-/github-ask https://github.com/tailwindlabs/tailwindcss what's the CLI architecture?
-/github-ask sv explain the reactivity system
+/gh-ask sveltejs/svelte how is the component compiler structured?
+/gh-ask https://github.com/tailwindlabs/tailwindcss what's the CLI architecture?
+/gh-ask sv explain the reactivity system
 ```
+
+The command nudges the AI to use the `gh-ask` tool, which prepares the repository locally. The AI then delegates to a subagent for exploration.
 
 **Supported input formats:**
 
@@ -45,17 +47,31 @@ Clone/locate a repository and analyze it with AI.
 - owner/repo pairs: `sveltejs/svelte`
 - Aliases: `sv` (if configured)
 
-### `/github-list`
+### `/gh-list`
 
 List all cloned repositories and configured aliases.
 
-### `/github-remove <repo>`
+### `/gh-remove <repo>`
 
 Remove a cloned repository from the cache.
 
+## AI Tool
+
+The plugin provides a single tool for the AI:
+
+| Tool | Description |
+| --------- | ----------------------------------------------------------------- |
+| `gh-ask` | Prepare a GitHub repo for exploration (clone/update). Returns the local path and suggests a subagent for analysis. |
+
+The AI can call this tool directly when it needs to explore a repository, even without the `/gh-ask` command.
+
 ## Configuration
 
-Aliases are stored in `~/.config/opencode/ask-github.json`:
+Configuration is stored in `~/.config/opencode/ask-github.json`.
+
+### Aliases
+
+Add aliases for frequently used repositories by editing the config file directly:
 
 ```json
 {
@@ -66,26 +82,25 @@ Aliases are stored in `~/.config/opencode/ask-github.json`:
 }
 ```
 
-You can also manage aliases by asking the AI:
+You can also use `/gh-list` to see all configured aliases.
 
-- "Add a GitHub alias 'react' for facebook/react"
-- "List my GitHub aliases"
-- "Remove the 'sv' alias"
+### Prompt
+
+Customize which subagent is suggested for repository exploration:
+
+```json
+{
+  "prompt": {
+    "agent": "general"
+  }
+}
+```
+
+Default agent is `explore`.
 
 ## Storage
 
 Repositories are cloned to `~/.cache/opencode-github/{owner}/{repo}/`.
-
-## AI Tools
-
-The plugin provides these tools for the AI to use:
-
-| Tool                  | Description                 |
-| --------------------- | --------------------------- |
-| `github-alias-add`    | Add a repository alias      |
-| `github-alias-remove` | Remove an alias             |
-| `github-alias-list`   | List all aliases            |
-| `github-repo-info`    | Get info about a repository |
 
 ## License
 

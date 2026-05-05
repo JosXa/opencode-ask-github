@@ -4,13 +4,7 @@ import { handleAsk } from "./src/commands/ask";
 import { handleList } from "./src/commands/list";
 import { handleRemove } from "./src/commands/remove";
 import { getPromptConfig, loadConfig } from "./src/config";
-import {
-  cloneRepo,
-  getRepoPath,
-  isCloned,
-  listClonedRepos,
-  updateRepo,
-} from "./src/repo-manager";
+import { cloneRepo, getRepoPath, isCloned, listClonedRepos, updateRepo } from "./src/repo-manager";
 import { formatRepo, parseRepoInput } from "./src/repo-parser";
 import type { CommandContext } from "./src/types";
 

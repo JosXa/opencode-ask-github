@@ -3,7 +3,18 @@ import type { AliasMap, ClonedRepo, RepoInfo } from "./types.ts";
 const GITHUB_URL_REGEX =
   /^(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)/;
 
+const GITHUB_SSH_REGEX = /^git@github\.com:([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)/;
+
 const OWNER_REPO_REGEX = /^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$/;
+
+function createRepoInfo(owner: string, repo: string): RepoInfo {
+  return {
+    owner,
+    repo,
+    url: `https://github.com/${owner}/${repo}`,
+    cloneUrl: `git@github.com:${owner}/${repo}.git`,
+  };
+}
 
 /**
  * Normalize a GitHub URL by stripping trailing .git, /tree/..., /blob/..., etc.
@@ -49,11 +60,17 @@ export function parseRepoInput(
     const owner = urlMatch[1];
     const repo = urlMatch[2].replace(/\.git$/, "");
     return {
-      repoInfo: {
-        owner,
-        repo,
-        url: `https://github.com/${owner}/${repo}`,
-      },
+      repoInfo: createRepoInfo(owner, repo),
+    };
+  }
+
+  // Try SSH URL format
+  const sshMatch = input.trim().match(GITHUB_SSH_REGEX);
+  if (sshMatch) {
+    const owner = sshMatch[1];
+    const repo = sshMatch[2].replace(/\.git$/, "");
+    return {
+      repoInfo: createRepoInfo(owner, repo),
     };
   }
 
@@ -63,11 +80,7 @@ export function parseRepoInput(
     const owner = ownerRepoMatch[1];
     const repo = ownerRepoMatch[2];
     return {
-      repoInfo: {
-        owner,
-        repo,
-        url: `https://github.com/${owner}/${repo}`,
-      },
+      repoInfo: createRepoInfo(owner, repo),
     };
   }
 
@@ -86,9 +99,7 @@ export function parseRepoInput(
       const match = matchingRepos[0];
       return {
         repoInfo: {
-          owner: match.owner,
-          repo: match.repo,
-          url: `https://github.com/${match.owner}/${match.repo}`,
+          ...createRepoInfo(match.owner, match.repo),
         },
         matchedClonedRepo: match,
       };
@@ -124,14 +135,21 @@ function parseRepoInputSimple(input: string): RepoInfo | null {
   if (urlMatch) {
     const owner = urlMatch[1];
     const repo = urlMatch[2].replace(/\.git$/, "");
-    return { owner, repo, url: `https://github.com/${owner}/${repo}` };
+    return createRepoInfo(owner, repo);
+  }
+
+  const sshMatch = trimmed.match(GITHUB_SSH_REGEX);
+  if (sshMatch) {
+    const owner = sshMatch[1];
+    const repo = sshMatch[2].replace(/\.git$/, "");
+    return createRepoInfo(owner, repo);
   }
 
   const ownerRepoMatch = trimmed.match(OWNER_REPO_REGEX);
   if (ownerRepoMatch) {
     const owner = ownerRepoMatch[1];
     const repo = ownerRepoMatch[2];
-    return { owner, repo, url: `https://github.com/${owner}/${repo}` };
+    return createRepoInfo(owner, repo);
   }
 
   return null;

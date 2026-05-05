@@ -19,6 +19,7 @@ export interface RepoInfo {
   owner: string;
   repo: string;
   url: string;
+  cloneUrl: string;
 }
 
 export interface ClonedRepo {

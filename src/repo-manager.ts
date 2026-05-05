@@ -58,7 +58,7 @@ export async function cloneRepo(info: RepoInfo): Promise<{ success: boolean; err
     mkdirSync(ownerDir, { recursive: true });
   }
 
-  const result = await runGitCommand(["clone", "--depth", "1", `${info.url}.git`, path]);
+  const result = await runGitCommand(["clone", "--depth", "1", info.cloneUrl, path]);
 
   if (!result.success) {
     return {

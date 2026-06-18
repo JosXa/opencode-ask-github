@@ -27,11 +27,13 @@
     "access": "public"
   },
   "engines": {
-    "bun": ">=1.0.0"
+    "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc --noEmit",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && bun build ./index.ts --outfile ./dist/index.js --target node --external @opencode-ai/plugin",
+    "typecheck": "tsgo --noEmit",
+    "lint": "biome check --error-on-warnings .",
+    "ai:check": "biome check --write --error-on-warnings . && tsgo --noEmit",
     "format:check": "biome check .",
     "format:fix": "biome check --write ."
   },
@@ -40,7 +42,9 @@
   ],
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
-    "@types/bun": "^1.2.0",
+    "@opencode-ai/plugin": "^1.17.8",
+    "@typescript/native-preview": "latest",
+    "@types/node": "^22",
     "typescript": "^5.8.0"
   },
   "peerDependencies": {

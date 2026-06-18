@@ -9,7 +9,7 @@
     "declaration": true,
     "declarationMap": true,
     "noEmit": true,
-    "types": ["bun-types", "node"],
+    "types": ["node"],
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true
   },

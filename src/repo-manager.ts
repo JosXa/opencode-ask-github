@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { ensureCacheDir, getCacheDir } from "./config";
@@ -25,22 +26,22 @@ export function isCloned(info: RepoInfo): boolean {
 async function runGitCommand(
   args: string[],
 ): Promise<{ success: boolean; stdout: string; stderr: string }> {
-  const proc = Bun.spawn(["git", ...args], {
-    stdout: "pipe",
-    stderr: "pipe",
+  const proc = spawn("git", args, { stdio: ["ignore", "pipe", "pipe"] });
+
+  const stdoutChunks: Buffer[] = [];
+  const stderrChunks: Buffer[] = [];
+  proc.stdout.on("data", (chunk) => stdoutChunks.push(Buffer.from(chunk)));
+  proc.stderr.on("data", (chunk) => stderrChunks.push(Buffer.from(chunk)));
+
+  const exitCode = await new Promise<number>((resolve, reject) => {
+    proc.once("error", reject);
+    proc.once("close", (code) => resolve(code ?? 1));
   });
-
-  const [stdout, stderr] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-  ]);
-
-  const exitCode = await proc.exited;
 
   return {
     success: exitCode === 0,
-    stdout,
-    stderr,
+    stdout: Buffer.concat(stdoutChunks).toString("utf8"),
+    stderr: Buffer.concat(stderrChunks).toString("utf8"),
   };
 }
 

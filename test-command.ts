@@ -4,8 +4,8 @@
  * Simulates command.execute.before hook invocation
  */
 
-import { handleAsk } from "./src/commands/ask";
-import type { CommandContext } from "./src/types";
+import { handleAsk } from "./src/commands/ask.js";
+import type { CommandContext } from "./src/types.js";
 
 // Mock client with minimal required functionality
 const mockClient: MockClient = {

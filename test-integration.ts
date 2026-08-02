@@ -6,8 +6,14 @@
  */
 
 import { $ } from "bun";
-import { cloneRepo, getRepoPath, isCloned, listClonedRepos } from "./src/repo-manager";
-import type { RepoInfo } from "./src/types";
+import {
+  cloneRepo,
+  getRepoPath,
+  isCloned,
+  listClonedRepos,
+  removeRepo,
+} from "./src/repo-manager.js";
+import type { RepoInfo } from "./src/types.js";
 
 async function integrationTest() {
   console.log("🧪 Integration Test: Real Repository Cloning\n");
@@ -15,9 +21,10 @@ async function integrationTest() {
 
   // Test repo: choose a small, fast repo
   const testRepo: RepoInfo = {
-    owner: "sst",
-    repo: "opencode",
-    url: "https://github.com/sst/opencode",
+    owner: "octocat",
+    repo: "Hello-World",
+    url: "https://github.com/octocat/Hello-World",
+    cloneUrl: "git@github.com:octocat/Hello-World.git",
   };
 
   console.log("\n📋 Phase 1: Check initial state");
@@ -28,84 +35,80 @@ async function integrationTest() {
   console.log(`Initially cloned: ${initiallyCloned}`);
 
   if (initiallyCloned) {
-    console.log("⚠️  Repo already cloned, removing for clean test...");
-    await $`rm -rf ${localPath}`.nothrow();
+    throw new Error(`Refusing to remove pre-existing test repository at ${localPath}`);
   }
 
-  console.log(`\n${"━".repeat(60)}`);
-  console.log("\n📋 Phase 2: Clone the repository");
-  console.log("This will take 10-30 seconds for a shallow clone...\n");
-
   try {
-    await cloneRepo(testRepo, $);
+    console.log(`\n${"━".repeat(60)}`);
+    console.log("\n📋 Phase 2: Clone the repository");
+    console.log("This will take a few seconds for a shallow clone...\n");
+
+    const cloneResult = await cloneRepo(testRepo);
+    if (!cloneResult.success) {
+      throw new Error(`Clone failed: ${cloneResult.error}`);
+    }
     console.log("✅ Clone completed successfully");
-  } catch (error) {
-    console.error("❌ Clone failed:", error);
-    process.exit(1);
-  }
 
-  console.log(`\n${"━".repeat(60)}`);
-  console.log("\n📋 Phase 3: Verify clone");
+    console.log(`\n${"━".repeat(60)}`);
+    console.log("\n📋 Phase 3: Verify clone");
 
-  const afterClone = isCloned(testRepo);
-  console.log(`Repository: ${testRepo.owner}/${testRepo.repo}`);
-  console.log(`Local path: ${localPath}`);
-  console.log(`Is cloned: ${afterClone}`);
+    const afterClone = isCloned(testRepo);
+    console.log(`Repository: ${testRepo.owner}/${testRepo.repo}`);
+    console.log(`Local path: ${localPath}`);
+    console.log(`Is cloned: ${afterClone}`);
 
-  if (!afterClone) {
-    console.error("❌ Repository not detected as cloned after clone operation");
-    process.exit(1);
-  }
-
-  // Verify it's actually a git repo
-  try {
-    const result = await $`git -C ${localPath} rev-parse --git-dir`.nothrow();
-    if (result.exitCode === 0) {
-      console.log("✅ Verified as valid git repository");
-    } else {
-      console.error("❌ Not a valid git repository");
-      process.exit(1);
+    if (!afterClone) {
+      throw new Error("Repository not detected as cloned after clone operation");
     }
-  } catch (error) {
-    console.error("❌ Failed to verify git repository:", error);
-    process.exit(1);
-  }
 
-  // Check if README exists (most repos have one)
-  try {
-    const result = await $`test -f ${localPath}/README.md`.nothrow();
-    if (result.exitCode === 0) {
-      console.log("✅ Found README.md in cloned repo");
+    // Verify it's actually a git repo
+    try {
+      const result = await $`git -C ${localPath} rev-parse --git-dir`.nothrow();
+      if (result.exitCode === 0) {
+        console.log("✅ Verified as valid git repository");
+      } else {
+        throw new Error("Not a valid git repository");
+      }
+    } catch (error) {
+      throw new Error("Failed to verify git repository", { cause: error });
     }
-  } catch {
-    console.log("ℹ️  No README.md found (not critical)");
+
+    // Check if README exists (most repos have one)
+    try {
+      const result = await $`test -f ${localPath}/README.md`.nothrow();
+      if (result.exitCode === 0) {
+        console.log("✅ Found README.md in cloned repo");
+      }
+    } catch {
+      console.log("ℹ️  No README.md found (not critical)");
+    }
+
+    console.log(`\n${"━".repeat(60)}`);
+    console.log("\n📋 Phase 4: List all cloned repos");
+
+    const allRepos = listClonedRepos();
+    console.log(`Found ${allRepos.length} cloned repository/repositories:`);
+    for (const repo of allRepos) {
+      console.log(`  - ${repo.owner}/${repo.repo} at ${repo.path}`);
+    }
+
+    if (!allRepos.some((r) => r.owner === testRepo.owner && r.repo === testRepo.repo)) {
+      throw new Error("Cloned repo not found in list");
+    }
+    console.log("✅ Cloned repo appears in list");
+
+    console.log(`\n${"━".repeat(60)}`);
+    console.log("\n🎉 All integration tests passed!\n");
+    console.log("Summary:");
+    console.log("- ✅ Repository cloning works correctly");
+    console.log("- ✅ Clone detection works after clone");
+    console.log("- ✅ Cloned repository is valid git repo");
+    console.log("- ✅ Repository listing works correctly");
+  } finally {
+    if (removeRepo(testRepo)) {
+      console.log(`\n🧹 Removed integration-test clone at ${localPath}`);
+    }
   }
-
-  console.log(`\n${"━".repeat(60)}`);
-  console.log("\n📋 Phase 4: List all cloned repos");
-
-  const allRepos = listClonedRepos();
-  console.log(`Found ${allRepos.length} cloned repository/repositories:`);
-  for (const repo of allRepos) {
-    console.log(`  - ${repo.owner}/${repo.repo} at ${repo.path}`);
-  }
-
-  if (!allRepos.some((r) => r.owner === testRepo.owner && r.repo === testRepo.repo)) {
-    console.error("❌ Cloned repo not found in list");
-    process.exit(1);
-  }
-  console.log("✅ Cloned repo appears in list");
-
-  console.log(`\n${"━".repeat(60)}`);
-  console.log("\n🎉 All integration tests passed!\n");
-  console.log("Summary:");
-  console.log("- ✅ Repository cloning works correctly");
-  console.log("- ✅ Clone detection works after clone");
-  console.log("- ✅ Cloned repository is valid git repo");
-  console.log("- ✅ Repository listing works correctly");
-  console.log("\n📦 Cloned repository available at:");
-  console.log(`   ${localPath}`);
-  console.log("\n💡 You can now test /github-ask in an interactive TUI session!");
 }
 
-integrationTest();
+await integrationTest();

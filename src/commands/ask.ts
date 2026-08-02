@@ -1,7 +1,7 @@
-import { loadConfig } from "../config";
-import { listClonedRepos } from "../repo-manager";
-import { formatRepo, parseRepoInput } from "../repo-parser";
-import type { CommandContext } from "../types";
+import { loadConfig } from "../config.js";
+import { listClonedRepos } from "../repo-manager.js";
+import { formatRepo, parseRepoInput } from "../repo-parser.js";
+import type { CommandContext } from "../types.js";
 
 /**
  * Handle /gh-ask command.

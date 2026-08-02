@@ -1,4 +1,4 @@
-import type { CommandContext } from "./types";
+import type { CommandContext } from "./types.js";
 
 type ToastVariant = "info" | "success" | "warning" | "error";
 

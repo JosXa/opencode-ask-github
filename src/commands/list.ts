@@ -1,7 +1,7 @@
-import { loadConfig } from "../config";
-import { sendIgnoredMessage } from "../notification";
-import { listClonedRepos } from "../repo-manager";
-import type { CommandContext } from "../types";
+import { loadConfig } from "../config.js";
+import { sendIgnoredMessage } from "../notification.js";
+import { listClonedRepos } from "../repo-manager.js";
+import type { CommandContext } from "../types.js";
 
 /**
  * Handle /github-list command.

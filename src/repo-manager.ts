@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { ensureCacheDir, getCacheDir } from "./config";
-import type { ClonedRepo, RepoInfo } from "./types";
+import { ensureCacheDir, getCacheDir } from "./config.js";
+import type { ClonedRepo, RepoInfo } from "./types.js";
 
 /**
  * Get the local path for a repository.

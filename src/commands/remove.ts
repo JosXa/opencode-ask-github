@@ -1,8 +1,8 @@
-import { loadConfig } from "../config";
-import { sendIgnoredMessage } from "../notification";
-import { isCloned, listClonedRepos, removeRepo } from "../repo-manager";
-import { formatRepo, parseRepoInput } from "../repo-parser";
-import type { CommandContext } from "../types";
+import { loadConfig } from "../config.js";
+import { sendIgnoredMessage } from "../notification.js";
+import { isCloned, listClonedRepos, removeRepo } from "../repo-manager.js";
+import { formatRepo, parseRepoInput } from "../repo-parser.js";
+import type { CommandContext } from "../types.js";
 
 /**
  * Handle /github-remove command.

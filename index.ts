@@ -1,12 +1,18 @@
 import type { Plugin } from "@opencode-ai/plugin";
-import { tool } from "@opencode-ai/plugin";
-import { handleAsk } from "./src/commands/ask";
-import { handleList } from "./src/commands/list";
-import { handleRemove } from "./src/commands/remove";
-import { getPromptConfig, loadConfig } from "./src/config";
-import { cloneRepo, getRepoPath, isCloned, listClonedRepos, updateRepo } from "./src/repo-manager";
-import { formatRepo, parseRepoInput } from "./src/repo-parser";
-import type { CommandContext } from "./src/types";
+import { tool } from "@opencode-ai/plugin/tool";
+import { handleAsk } from "./src/commands/ask.js";
+import { handleList } from "./src/commands/list.js";
+import { handleRemove } from "./src/commands/remove.js";
+import { getPromptConfig, loadConfig } from "./src/config.js";
+import {
+  cloneRepo,
+  getRepoPath,
+  isCloned,
+  listClonedRepos,
+  updateRepo,
+} from "./src/repo-manager.js";
+import { formatRepo, parseRepoInput } from "./src/repo-parser.js";
+import type { CommandContext } from "./src/types.js";
 
 /** Marker error to indicate command was handled */
 const COMMAND_HANDLED_MARKER = "__GH_COMMAND_HANDLED__";

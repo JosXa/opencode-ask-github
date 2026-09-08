@@ -1,121 +1,224 @@
-import type { Plugin } from "@opencode-ai/plugin";
-import { tool } from "@opencode-ai/plugin";
-import { handleAsk } from "./src/commands/ask";
-import { handleList } from "./src/commands/list";
-import { handleRemove } from "./src/commands/remove";
-import { getPromptConfig, loadConfig } from "./src/config";
-import { cloneRepo, getRepoPath, isCloned, listClonedRepos, updateRepo } from "./src/repo-manager";
-import { formatRepo, parseRepoInput } from "./src/repo-parser";
-import type { CommandContext } from "./src/types";
+import { Plugin } from "@opencode-ai/plugin";
+import { renderAskUsage, renderUnresolvedRepo } from "./src/commands/ask.js";
+import { renderRepoList } from "./src/commands/list.js";
+import { removeRepository } from "./src/commands/remove.js";
+import { getPromptConfig, loadConfig } from "./src/config.js";
+import {
+  cloneRepo,
+  getRepoPath,
+  isCloned,
+  listClonedRepos,
+  updateRepo,
+} from "./src/repo-manager.js";
+import { formatRepo, parseRepoInput } from "./src/repo-parser.js";
+import type { ClonedRepo, Config, RepoInfo } from "./src/types.js";
 
-/** Marker error to indicate command was handled */
-const COMMAND_HANDLED_MARKER = "__GH_COMMAND_HANDLED__";
+const ASK_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    repo: { type: "string", description: "Repository (owner/repo, URL, or alias)" },
+  },
+  required: ["repo"],
+  additionalProperties: false,
+} as const;
 
-interface CommandInput {
-  command: string;
-  sessionID: string;
-  arguments: string;
+const REMOVE_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    repo: {
+      type: "string",
+      description: "Repository (owner/repo, URL, alias, or clone-name substring)",
+    },
+  },
+  required: ["repo"],
+  additionalProperties: false,
+} as const;
+
+const EMPTY_INPUT_SCHEMA = {
+  type: "object",
+  properties: {},
+  additionalProperties: false,
+} as const;
+
+export interface PluginDependencies {
+  loadConfig: () => Config;
+  listClonedRepos: () => ClonedRepo[];
+  getRepoPath: (info: RepoInfo) => string;
+  isCloned: (info: RepoInfo) => boolean;
+  cloneRepo: (info: RepoInfo) => Promise<{ success: boolean; error?: string }>;
+  updateRepo: (info: RepoInfo) => Promise<{ success: boolean; error?: string }>;
+  removeRepo: (info: RepoInfo) => boolean;
 }
 
-interface CommandOutput {
-  parts: Array<{ type: string; text?: string; [key: string]: unknown }>;
-}
-
-export const AskGithubPlugin: Plugin = async ({ client, $, directory }) => {
-  return {
-    config: async (cfg) => {
-      cfg.command ??= {};
-      cfg.command["gh-ask"] = {
-        template: "",
-        description: "Clone/locate a GitHub repo and analyze with AI",
-      };
-      cfg.command["gh-list"] = {
-        template: "",
-        description: "List cloned GitHub repositories and aliases",
-      };
-      cfg.command["gh-remove"] = {
-        template: "",
-        description: "Remove a cloned GitHub repository from cache",
-      };
-    },
-
-    "command.execute.before": async (input: CommandInput, output: CommandOutput) => {
-      const ctx: CommandContext = {
-        client,
-        $,
-        directory,
-        sessionId: input.sessionID,
-      };
-
-      try {
-        if (input.command === "gh-ask") {
-          await handleAsk(input.arguments, ctx);
-          output.parts.length = 0;
-          throw new Error(COMMAND_HANDLED_MARKER);
-        }
-
-        if (input.command === "gh-list") {
-          await handleList(ctx);
-          output.parts.length = 0;
-          throw new Error(COMMAND_HANDLED_MARKER);
-        }
-
-        if (input.command === "gh-remove") {
-          await handleRemove(input.arguments, ctx);
-          output.parts.length = 0;
-          throw new Error(COMMAND_HANDLED_MARKER);
-        }
-      } catch (error) {
-        // Re-throw marker error to signal command was handled
-        if (error instanceof Error && error.message === COMMAND_HANDLED_MARKER) {
-          throw error;
-        }
-        // Re-throw other errors
-        throw error;
-      }
-    },
-
-    tool: {
-      "gh-ask": tool({
-        description:
-          "Prepare a GitHub repo for exploration. Clones or updates locally. Accepts owner/repo, URLs, or aliases.",
-        args: {
-          repo: tool.schema.string("Repository (owner/repo, URL, or alias)"),
-        },
-        async execute(args) {
-          const config = loadConfig();
-          const promptConfig = getPromptConfig(config);
-          const clonedRepos = listClonedRepos();
-          const result = parseRepoInput(args.repo, config.aliases, clonedRepos);
-
-          if (!result.repoInfo) {
-            const aliases = Object.entries(config.aliases);
-            const aliasHint =
-              aliases.length > 0
-                ? `\nConfigured aliases: ${aliases.map(([a, r]) => `${a}=${r}`).join(", ")}`
-                : "";
-            return `Could not resolve repository: ${args.repo}${aliasHint}`;
-          }
-
-          const info = result.repoInfo;
-          const display = formatRepo(info);
-          const localPath = getRepoPath(info);
-
-          if (isCloned(info)) {
-            const updateResult = await updateRepo(info);
-            if (!updateResult.success) {
-              return `Failed to update ${display}: ${updateResult.error}`;
-            }
-          } else {
-            const cloneResult = await cloneRepo(info);
-            if (!cloneResult.success) {
-              return `Failed to clone ${display}: ${cloneResult.error}`;
-            }
-          }
-
-          return `${display} is ready at ${localPath}.\nUse the @${promptConfig.agent} subagent to answer questions about this codebase.`;
-        },
-      }),
-    },
-  };
+const runtimeDependencies: PluginDependencies = {
+  loadConfig,
+  listClonedRepos,
+  getRepoPath,
+  isCloned,
+  cloneRepo,
+  updateRepo,
+  removeRepo: removeRepository,
 };
+
+function requiredRepo(input: unknown): string {
+  if (
+    typeof input !== "object" ||
+    input === null ||
+    !("repo" in input) ||
+    typeof input.repo !== "string"
+  ) {
+    throw new Error("repo must be a string");
+  }
+  return input.repo;
+}
+
+export function createAskGithubPlugin(dependencies: PluginDependencies = runtimeDependencies) {
+  return Plugin.define({
+    id: "opencode-ask-github",
+    setup: async (ctx) => {
+      const registrations: Array<{ dispose(): Promise<void> }> = [];
+      try {
+        registrations.push(
+          await ctx.command.transform((commands) => {
+            const add = (name: string, description: string, template: string) => {
+              commands.add({
+                name,
+                description,
+                execute: async ({ sessionID, prompt, delivery }) => {
+                  // The command schema materializes undefined optionals; the wire API rejects them.
+                  const input = JSON.parse(
+                    JSON.stringify({
+                      sessionID,
+                      delivery,
+                      ...prompt,
+                      text: template.replaceAll("$ARGUMENTS", () => prompt.text),
+                    }),
+                  ) as Parameters<typeof ctx.session.prompt>[0];
+                  await ctx.session.prompt(input);
+                },
+              });
+            };
+            add(
+              "gh-ask",
+              "Clone/locate a GitHub repo and analyze with AI",
+              "If Arguments is empty, call gh-ask with an empty repo and return its result exactly. Otherwise, use gh-ask with the first argument as the repository, then answer the remaining question about it. Arguments: $ARGUMENTS",
+            );
+            add(
+              "gh-list",
+              "List cloned GitHub repositories and aliases",
+              "Call the gh-list tool and return its result exactly, without adding commentary.",
+            );
+            add(
+              "gh-remove",
+              "Remove a cloned GitHub repository from cache",
+              "Call gh-remove with the complete Arguments value as its repository and return its result exactly, including when Arguments is empty: $ARGUMENTS",
+            );
+          }),
+        );
+
+        registrations.push(
+          await ctx.tool.transform((tools) => {
+            tools.add({
+              name: "gh-ask",
+              description:
+                "Prepare a GitHub repo for exploration. Clones or updates locally. Accepts owner/repo, URLs, or aliases.",
+              input: ASK_INPUT_SCHEMA,
+              options: { codemode: true },
+              execute: async (input) => {
+                const repo = requiredRepo(input);
+                const config = dependencies.loadConfig();
+                if (repo.trim() === "") return { content: renderAskUsage(config.aliases) };
+                const promptConfig = getPromptConfig(config);
+                const result = parseRepoInput(repo, config.aliases, dependencies.listClonedRepos());
+
+                if (!result.repoInfo) {
+                  return { content: renderUnresolvedRepo(repo, config.aliases) };
+                }
+
+                const info = result.repoInfo;
+                const display = formatRepo(info);
+                const localPath = dependencies.getRepoPath(info);
+                const wasCloned = dependencies.isCloned(info);
+                const operation = wasCloned
+                  ? await dependencies.updateRepo(info)
+                  : await dependencies.cloneRepo(info);
+
+                if (!operation.success) {
+                  const verb = wasCloned ? "update" : "clone";
+                  return { content: `Failed to ${verb} ${display}: ${operation.error}` };
+                }
+
+                return {
+                  content: `${display} is ready at ${localPath}.\nUse the @${promptConfig.agent} subagent to answer questions about this codebase.`,
+                };
+              },
+            });
+
+            tools.add({
+              name: "gh-list",
+              description:
+                "List repositories cached by opencode-ask-github and configured aliases.",
+              input: EMPTY_INPUT_SCHEMA,
+              options: { codemode: true },
+              execute: async () => ({
+                content: renderRepoList(dependencies.loadConfig(), dependencies.listClonedRepos()),
+              }),
+            });
+
+            tools.add({
+              name: "gh-remove",
+              description: "Remove a repository from the opencode-ask-github cache.",
+              input: REMOVE_INPUT_SCHEMA,
+              options: { codemode: true },
+              execute: async (input) => {
+                const repo = requiredRepo(input);
+                if (repo.trim() === "") return { content: "Usage: `/gh-remove <repo>`" };
+                const config = dependencies.loadConfig();
+                const result = parseRepoInput(repo, config.aliases, dependencies.listClonedRepos());
+                if (!result.repoInfo) return { content: `Could not parse repository: \`${repo}\`` };
+
+                const display = formatRepo(result.repoInfo);
+                if (!dependencies.isCloned(result.repoInfo)) {
+                  return { content: `Repository \`${display}\` is not cloned.` };
+                }
+                return {
+                  content: dependencies.removeRepo(result.repoInfo)
+                    ? `Removed \`${display}\` from cache.`
+                    : `Failed to remove \`${display}\`.`,
+                };
+              },
+            });
+          }),
+        );
+      } catch (setupError) {
+        const disposal = await Promise.allSettled(
+          [...registrations].reverse().map((registration) => registration.dispose()),
+        );
+        const disposalErrors = disposal
+          .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+          .map((result) => result.reason);
+        if (disposalErrors.length > 0) throw new AggregateError([setupError, ...disposalErrors]);
+        throw setupError;
+      }
+
+      let cleaned = false;
+      return async () => {
+        if (cleaned) return;
+        cleaned = true;
+        const disposal = await Promise.allSettled(
+          [...registrations].reverse().map((registration) => registration.dispose()),
+        );
+        const errors = disposal
+          .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+          .map((result) => result.reason);
+        if (errors.length > 0)
+          throw new AggregateError(errors, "Failed to dispose ask-github registrations");
+      };
+    },
+  });
+}
+
+export const AskGithubPlugin = createAskGithubPlugin();
+export default AskGithubPlugin;
+
+export { renderAskUsage };

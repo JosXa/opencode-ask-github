@@ -1,4 +1,4 @@
-import type { AliasMap, ClonedRepo, RepoInfo } from "./types.ts";
+import type { AliasMap, ClonedRepo, RepoInfo } from "./types.js";
 
 const GITHUB_URL_REGEX =
   /^(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)/;

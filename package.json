@@ -1,6 +1,6 @@
 {
   "name": "opencode-ask-github",
-  "version": "1.0.2",
+  "version": "1.0.2-opencode-v2",
   "description": "GitHub repository management plugin for OpenCode - auto-clone repos and analyze with AI",
   "type": "module",
   "main": "./dist/index.js",
@@ -32,6 +32,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "check": "bun run format:check && bun run typecheck && bun test && bun run build && bun run release:check",
+    "release:check": "node scripts/check-release.mjs",
     "format:check": "biome check .",
     "format:fix": "biome check --write ."
   },
@@ -43,7 +46,7 @@
     "@types/bun": "^1.2.0",
     "typescript": "^5.8.0"
   },
-  "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.0.0"
+  "dependencies": {
+    "@opencode-ai/plugin": "0.0.0-beta-19157"
   }
 }

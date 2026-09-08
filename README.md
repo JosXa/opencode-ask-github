@@ -1,6 +1,6 @@
 # opencode-ask-github
 
-GitHub repository exploration plugin for OpenCode. Clones repositories on-demand and delegates analysis to AI subagents.
+GitHub repository exploration plugin for OpenCode V2. Clones repositories on-demand and delegates analysis to AI subagents.
 
 ## Features
 
@@ -11,19 +11,19 @@ GitHub repository exploration plugin for OpenCode. Clones repositories on-demand
 
 ## Installation
 
-Install via npm/bun:
+Install the OpenCode V2 prerelease via npm/bun:
 
 ```bash
-bunx opencode-ask-github
+bun add opencode-ask-github@1.0.2-opencode-v2
 # or
-npx opencode-ask-github
+npm install opencode-ask-github@1.0.2-opencode-v2
 ```
 
 Or add manually to your OpenCode configuration (`~/.config/opencode/config.json`):
 
 ```json
 {
-  "plugins": ["opencode-ask-github"]
+  "plugin": ["opencode-ask-github@1.0.2-opencode-v2"]
 }
 ```
 
@@ -57,11 +57,13 @@ Remove a cloned repository from the cache.
 
 ## AI Tool
 
-The plugin provides a single tool for the AI:
+The plugin provides the repository tool plus two command-support tools required by OpenCode V2's prompt-based command API:
 
 | Tool | Description |
 | --------- | ----------------------------------------------------------------- |
 | `gh-ask` | Prepare a GitHub repo for exploration (clone/update). Returns the local path and suggests a subagent for analysis. |
+| `gh-list` | List cached repositories and configured aliases. |
+| `gh-remove` | Remove a cached repository. |
 
 The AI can call this tool directly when it needs to explore a repository, even without the `/gh-ask` command.
 

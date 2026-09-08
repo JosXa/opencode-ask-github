@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Config, PromptConfig } from "./types";
+import type { Config, PromptConfig } from "./types.js";
 
 const CONFIG_DIR = join(homedir(), ".config", "opencode");
 const CONFIG_FILE = join(CONFIG_DIR, "ask-github.json");

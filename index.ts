@@ -1,17 +1,8 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin/tool";
-import { handleAsk } from "./src/commands/ask.js";
+import { handleAsk, prepareRepository } from "./src/commands/ask.js";
 import { handleList } from "./src/commands/list.js";
 import { handleRemove } from "./src/commands/remove.js";
-import { getPromptConfig, loadConfig } from "./src/config.js";
-import {
-  cloneRepo,
-  getRepoPath,
-  isCloned,
-  listClonedRepos,
-  updateRepo,
-} from "./src/repo-manager.js";
-import { formatRepo, parseRepoInput } from "./src/repo-parser.js";
 import type { CommandContext } from "./src/types.js";
 
 /** Marker error to indicate command was handled */
@@ -33,7 +24,7 @@ export const AskGithubPlugin: Plugin = async ({ client, $, directory }) => {
       cfg.command ??= {};
       cfg.command["gh-ask"] = {
         template: "",
-        description: "Clone/locate a GitHub repo and analyze with AI",
+        description: "Prepare a GitHub repo and submit its tool result",
       };
       cfg.command["gh-list"] = {
         template: "",
@@ -55,9 +46,15 @@ export const AskGithubPlugin: Plugin = async ({ client, $, directory }) => {
 
       try {
         if (input.command === "gh-ask") {
-          await handleAsk(input.arguments, ctx);
-          output.parts.length = 0;
-          throw new Error(COMMAND_HANDLED_MARKER);
+          const text = await handleAsk(input.arguments);
+          // Command admission retains this array, so replace its contents in place.
+          output.parts.splice(
+            0,
+            output.parts.length,
+            { type: "text", text },
+            ...output.parts.filter((part) => part.type !== "text"),
+          );
+          return;
         }
 
         if (input.command === "gh-list") {
@@ -89,37 +86,7 @@ export const AskGithubPlugin: Plugin = async ({ client, $, directory }) => {
           repo: tool.schema.string("Repository (owner/repo, URL, or alias)"),
         },
         async execute(args) {
-          const config = loadConfig();
-          const promptConfig = getPromptConfig(config);
-          const clonedRepos = listClonedRepos();
-          const result = parseRepoInput(args.repo, config.aliases, clonedRepos);
-
-          if (!result.repoInfo) {
-            const aliases = Object.entries(config.aliases);
-            const aliasHint =
-              aliases.length > 0
-                ? `\nConfigured aliases: ${aliases.map(([a, r]) => `${a}=${r}`).join(", ")}`
-                : "";
-            return `Could not resolve repository: ${args.repo}${aliasHint}`;
-          }
-
-          const info = result.repoInfo;
-          const display = formatRepo(info);
-          const localPath = getRepoPath(info);
-
-          if (isCloned(info)) {
-            const updateResult = await updateRepo(info);
-            if (!updateResult.success) {
-              return `Failed to update ${display}: ${updateResult.error}`;
-            }
-          } else {
-            const cloneResult = await cloneRepo(info);
-            if (!cloneResult.success) {
-              return `Failed to clone ${display}: ${cloneResult.error}`;
-            }
-          }
-
-          return `${display} is ready at ${localPath}.\nUse the @${promptConfig.agent} subagent to answer questions about this codebase.`;
+          return prepareRepository(args.repo);
         },
       }),
     },

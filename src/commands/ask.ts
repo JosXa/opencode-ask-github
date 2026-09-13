@@ -1,27 +1,21 @@
-import { loadConfig } from "../config.js";
-import { listClonedRepos } from "../repo-manager.js";
+import { getPromptConfig, loadConfig } from "../config.js";
+import { cloneRepo, getRepoPath, isCloned, listClonedRepos, updateRepo } from "../repo-manager.js";
 import { formatRepo, parseRepoInput } from "../repo-parser.js";
-import type { CommandContext } from "../types.js";
 
-/**
- * Handle /gh-ask command.
- * Injects a message nudging the LLM to use the gh-ask tool.
- */
-export async function handleAsk(args: string, ctx: CommandContext): Promise<void> {
-  const { client, directory, sessionId } = ctx;
+/** Prepare the repository before the model receives the tool result and question. */
+export async function handleAsk(args: string): Promise<string> {
+  const match = args.trim().match(/^(\S+)(?:\s+([\s\S]*))?$/);
+  const repo = match?.[1] ?? "";
+  const question = match?.[2] ?? "";
+  const result = await prepareRepository(repo);
+  return question ? `${result}\n\n${question}` : result;
+}
+
+export async function prepareRepository(repo: string): Promise<string> {
   const config = loadConfig();
-
-  // Parse args: first token is repo, rest is question
-  const tokens = args.trim().split(/\s+/);
-  const repoInput = tokens[0];
-  const question = tokens.slice(1).join(" ");
-
-  if (!repoInput) {
-    await injectMessage(
-      client,
-      sessionId,
-      directory,
-      `Usage: /gh-ask <repo> [question]
+  if (repo.trim() === "") {
+    const aliases = Object.entries(config.aliases);
+    return `Usage: /gh-ask <repo> [question]
 
 **repo** can be:
 - GitHub URL: \`https://github.com/owner/repo\`
@@ -29,65 +23,26 @@ export async function handleAsk(args: string, ctx: CommandContext): Promise<void
 - alias: \`sv\` (if configured)
 
 **Configured aliases:**
-${formatAliases(config.aliases)}`,
-    );
-    return;
+${aliases.length ? aliases.map(([alias, target]) => `- \`${alias}\` → \`${target}\``).join("\n") : "_No aliases configured_"}`;
   }
 
-  // Resolve the repo so we can show a clean name in the nudge
-  const clonedRepos = listClonedRepos();
-  const parseResult = parseRepoInput(repoInput, config.aliases, clonedRepos);
-
-  if (!parseResult.repoInfo) {
-    await injectMessage(
-      client,
-      sessionId,
-      directory,
-      `Could not parse repository: \`${repoInput}\`
-
-Expected formats:
-- \`https://github.com/owner/repo\`
-- \`owner/repo\`
-- Configured alias
-- Substring of a cloned repo name
-
-**Configured aliases:**
-${formatAliases(config.aliases)}`,
-    );
-    return;
+  const result = parseRepoInput(repo, config.aliases, listClonedRepos());
+  if (!result.repoInfo) {
+    const aliases = Object.entries(config.aliases);
+    const aliasHint = aliases.length
+      ? `\nConfigured aliases: ${aliases.map(([alias, target]) => `${alias}=${target}`).join(", ")}`
+      : "";
+    return `Could not resolve repository: ${repo}${aliasHint}`;
   }
 
-  const repoDisplay = formatRepo(parseResult.repoInfo);
-
-  // Nudge the LLM to use the gh-ask tool
-  const nudge = question
-    ? `Please use the gh-ask tool on repository \`${repoDisplay}\` to answer:\n${question}`
-    : `Please use the gh-ask tool to prepare repository \`${repoDisplay}\` for exploration.`;
-
-  await injectMessage(client, sessionId, directory, nudge);
-}
-
-function formatAliases(aliases: Record<string, string>): string {
-  const entries = Object.entries(aliases);
-  if (entries.length === 0) {
-    return "_No aliases configured_";
+  const info = result.repoInfo;
+  const display = formatRepo(info);
+  const localPath = getRepoPath(info);
+  const wasCloned = isCloned(info);
+  const operation = wasCloned ? await updateRepo(info) : await cloneRepo(info);
+  if (!operation.success) {
+    return `Failed to ${wasCloned ? "update" : "clone"} ${display}: ${operation.error}`;
   }
-  return entries.map(([alias, repo]) => `- \`${alias}\` → \`${repo}\``).join("\n");
-}
 
-async function injectMessage(
-  client: CommandContext["client"],
-  sessionId: string,
-  directory: string,
-  text: string,
-  noReply = false,
-): Promise<void> {
-  await client.session.prompt({
-    path: { id: sessionId },
-    body: {
-      noReply,
-      parts: [{ type: "text", text }],
-    },
-    query: { directory },
-  });
+  return `${display} is ready at ${localPath}.\nUse the @${getPromptConfig(config).agent} subagent to answer questions about this codebase.`;
 }

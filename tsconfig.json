@@ -13,6 +13,6 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true
   },
-  "include": ["index.ts", "src/**/*.ts", "test/**/*.ts"],
+  "include": ["index.ts", "tui.ts", "src/**/*.ts", "test/**/*.ts"],
   "exclude": ["node_modules"]
 }

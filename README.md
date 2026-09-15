@@ -39,7 +39,9 @@ Clone/locate a repository and analyze it with AI.
 /gh-ask sv explain the reactivity system
 ```
 
-The command nudges the AI to use the `gh-ask` tool, which prepares the repository locally. The AI then delegates to a subagent for exploration.
+The command runs the same repository preparation as the `gh-ask` tool directly, then submits the tool result as a new user message. Any question after the repository argument is included after the result. Repository preparation completes before the model runs.
+
+The companion TUI plugin displays `Cloning owner/repo…` or `Updating owner/repo…` above the session composer while Git runs, using OpenCode's Braille spinner cadence and semantic text color. The indicator clears when preparation succeeds or fails. For local installations, register the package root so OpenCode can load both the server entry and the `./tui` export.
 
 **Supported input formats:**
 

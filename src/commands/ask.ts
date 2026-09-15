@@ -1,5 +1,10 @@
 import type { AliasMap } from "../types.js";
 
+export function parseAskArguments(args: string): { repo: string; question: string } {
+  const match = args.trim().match(/^(\S+)(?:\s+([\s\S]*))?$/);
+  return { repo: match?.[1] ?? "", question: match?.[2] ?? "" };
+}
+
 function formatAliases(aliases: AliasMap): string {
   const entries = Object.entries(aliases);
   if (entries.length === 0) return "_No aliases configured_";

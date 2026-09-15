@@ -5,6 +5,16 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./tui": {
+      "types": "./dist/tui.d.ts",
+      "default": "./dist/tui.js"
+    }
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/JosXa/opencode-ask-github.git"
@@ -43,10 +53,19 @@
   ],
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
+    "@opencode-ai/theme": "0.0.0-beta-19157",
+    "@opentui/core": "0.5.10",
+    "@opentui/solid": "0.5.10",
     "@types/bun": "^1.2.0",
+    "solid-js": "1.9.12",
     "typescript": "^5.8.0"
   },
   "dependencies": {
     "@opencode-ai/plugin": "0.0.0-beta-19157"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.5.10",
+    "@opentui/solid": ">=0.5.10",
+    "solid-js": ">=1.9.0"
   }
 }

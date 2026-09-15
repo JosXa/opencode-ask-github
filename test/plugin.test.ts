@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Plugin } from "@opencode-ai/plugin";
 import AskGithubPlugin, { createAskGithubPlugin, type PluginDependencies } from "../index";
+import type { Progress } from "../src/progress";
 import type { ClonedRepo, Config, RepoInfo } from "../src/types";
 
 interface RegisteredTool {
@@ -23,6 +24,7 @@ function setup(overrides: Partial<PluginDependencies> = {}) {
   const cloned: ClonedRepo[] = [];
   const calls = { clone: 0, update: 0, remove: 0 };
   const disposed: string[] = [];
+  const progress: Progress[] = [];
   const dependencies: PluginDependencies = {
     loadConfig: () => config,
     listClonedRepos: () => cloned,
@@ -44,8 +46,25 @@ function setup(overrides: Partial<PluginDependencies> = {}) {
   };
   const commands = new Map<string, CommandRecord>();
   const tools = new Map<string, RegisteredTool>();
-  const prompts: Array<{ text: string; files?: { uri: string }[]; delivery: string }> = [];
+  const prompts: Array<{
+    sessionID: string;
+    text: string;
+    files?: { uri: string }[];
+    delivery: string;
+  }> = [];
   const context = {
+    rpc: {
+      register: async () => ({
+        events: {
+          emit: async (_name: string, data: Progress) => {
+            progress.push(data);
+          },
+        },
+        dispose: async () => {
+          disposed.push("rpc");
+        },
+      }),
+    },
     session: {
       prompt: async (input: (typeof prompts)[number]) => {
         expect(input).toStrictEqual(JSON.parse(JSON.stringify(input)));
@@ -85,6 +104,7 @@ function setup(overrides: Partial<PluginDependencies> = {}) {
     calls,
     disposed,
     prompts,
+    progress,
   };
 }
 
@@ -99,17 +119,6 @@ describe("OpenCode V2 plugin", () => {
     await fixture.plugin.setup(fixture.context);
 
     expect([...fixture.commands.keys()]).toEqual(["gh-ask", "gh-list", "gh-remove"]);
-    for (const text of ["", "owner/repo $& $ARGUMENTS"]) {
-      await fixture.commands.get("gh-ask")?.execute({
-        sessionID: "ses_test",
-        prompt: { text, files: [{ uri: "file:///test" }] },
-        delivery: "queue",
-      });
-      expect(fixture.prompts.at(-1)?.text).toEndWith(`Arguments: ${text}`);
-      expect(fixture.prompts.at(-1)?.text).toContain("empty repo");
-      expect(fixture.prompts.at(-1)?.files).toEqual([{ uri: "file:///test" }]);
-      expect(fixture.prompts.at(-1)?.delivery).toBe("queue");
-    }
     await fixture.commands.get("gh-list")?.execute({
       sessionID: "ses_test",
       prompt: { text: "", files: undefined },
@@ -117,6 +126,112 @@ describe("OpenCode V2 plugin", () => {
     });
     expect(fixture.prompts.at(-1)).not.toHaveProperty("files");
     expect([...fixture.tools.keys()]).toEqual(["gh-ask", "gh-list", "gh-remove"]);
+  });
+
+  test.each([
+    "oc",
+    "anomalyco/opencode",
+    "https://github.com/anomalyco/opencode",
+  ])("prepares %s directly and submits the result with the complete question", async (repo) => {
+    const fixture = setup();
+    await fixture.plugin.setup(fixture.context);
+    const question = "What does `$&` mean?\n\nKeep  $ARGUMENTS and 日本語.";
+    await fixture.commands.get("gh-ask")?.execute({
+      sessionID: "ses_test",
+      prompt: { text: `  ${repo}\t${question}  `, files: [{ uri: "file:///test" }] },
+      delivery: "queue",
+    });
+    expect(fixture.calls.clone).toBe(1);
+    expect(fixture.prompts).toEqual([
+      {
+        sessionID: "ses_test",
+        text: `anomalyco/opencode is ready at /cache/anomalyco/opencode.\nUse the @explore subagent to answer questions about this codebase.\n\n${question}`,
+        files: [{ uri: "file:///test" }],
+        delivery: "queue",
+      },
+    ]);
+  });
+
+  test("waits for repository preparation before submitting a user message", async () => {
+    const operation = Promise.withResolvers<{ success: boolean }>();
+    const fixture = setup({ cloneRepo: () => operation.promise });
+    await fixture.plugin.setup(fixture.context);
+    const command = fixture.commands.get("gh-ask")?.execute({
+      sessionID: "ses_test",
+      prompt: { text: "oc", files: undefined },
+      delivery: "steer",
+    });
+    expect(fixture.prompts).toEqual([]);
+    expect(fixture.progress).toEqual([
+      {
+        sessionID: "ses_test",
+        operationID: expect.any(String),
+        text: "Cloning anomalyco/opencode…",
+      },
+    ]);
+    operation.resolve({ success: true });
+    await command;
+    expect(fixture.prompts).toHaveLength(1);
+    expect(fixture.prompts[0]).not.toHaveProperty("files");
+    expect(fixture.prompts[0]?.delivery).toBe("steer");
+    expect(fixture.progress[1]).toEqual({ ...fixture.progress[0], text: "" });
+  });
+
+  test.each([
+    "",
+    "   ",
+    "nonexistent-alias",
+  ])("submits the tool's usage or resolution result for %j without cloning", async (repo) => {
+    const fixture = setup();
+    await fixture.plugin.setup(fixture.context);
+    await fixture.commands.get("gh-ask")?.execute({
+      sessionID: "ses_test",
+      prompt: { text: repo },
+      delivery: "steer",
+    });
+    const toolResult = await fixture.tools.get("gh-ask")?.execute({ repo: repo.trim() });
+    expect(toolResult?.content).toBe(fixture.prompts[0].text);
+    expect(fixture.calls.clone + fixture.calls.update).toBe(0);
+  });
+
+  test.each([false, true])("submits repository operation failures (cloned: %s)", async (cloned) => {
+    const fixture = setup({
+      isCloned: () => cloned,
+      cloneRepo: async () => ({ success: false, error: "offline" }),
+      updateRepo: async () => ({ success: false, error: "offline" }),
+    });
+    await fixture.plugin.setup(fixture.context);
+    await fixture.commands.get("gh-ask")?.execute({
+      sessionID: "ses_test",
+      prompt: { text: "oc" },
+      delivery: "steer",
+    });
+    expect(fixture.prompts[0]?.text).toBe(
+      `Failed to ${cloned ? "update" : "clone"} anomalyco/opencode: offline`,
+    );
+    expect(fixture.progress.map((event) => event.text)).toEqual([
+      `${cloned ? "Updating" : "Cloning"} anomalyco/opencode…`,
+      "",
+    ]);
+  });
+
+  test("clears progress when Git throws", async () => {
+    const fixture = setup({
+      cloneRepo: async () => {
+        throw new Error("spawn failed");
+      },
+    });
+    await fixture.plugin.setup(fixture.context);
+    await expect(
+      fixture.commands
+        .get("gh-ask")
+        ?.execute({ sessionID: "ses_test", prompt: { text: "oc" }, delivery: "steer" }),
+    ).rejects.toThrow("spawn failed");
+    expect(fixture.progress.map((event) => event.text)).toEqual([
+      "Cloning anomalyco/opencode…",
+      "",
+    ]);
+    expect(fixture.prompts).toHaveLength(0);
   });
 
   test("resolves an alias, clones it, and preserves the configured agent hint", async () => {
@@ -194,12 +309,19 @@ describe("OpenCode V2 plugin", () => {
     expect(cleanup).toBeFunction();
     if (cleanup) await cleanup();
     if (cleanup) await cleanup();
-    expect(fixture.disposed).toEqual(["tool", "command"]);
+    expect(fixture.disposed).toEqual(["tool", "command", "rpc"]);
   });
 
   test("disposes the command transform after partial setup failure", async () => {
     const disposed: string[] = [];
     const context = {
+      rpc: {
+        register: async () => ({
+          dispose: async () => {
+            disposed.push("rpc");
+          },
+        }),
+      },
       command: {
         async transform() {
           return {
@@ -219,6 +341,6 @@ describe("OpenCode V2 plugin", () => {
     await expect(createAskGithubPlugin().setup(context as never)).rejects.toThrow(
       "tool registration failed",
     );
-    expect(disposed).toEqual(["command"]);
+    expect(disposed).toEqual(["command", "rpc"]);
   });
 });

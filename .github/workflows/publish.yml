@@ -2,7 +2,7 @@ name: OpenCode V2 CI and release
 
 on:
   push:
-    branches: [opencode-v2]
+    branches: [opencode-v2, v2]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -16,6 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.14"
@@ -24,11 +27,41 @@ jobs:
       - name: Format, typecheck, test, and build
         run: bun run check
       - name: Verify package tarball
-        run: npm pack --dry-run
+        run: bun run test:package
+      - name: Verify source paths with spaces and Unicode
+        run: bun run test:build-path
+
+  native:
+    needs: checks
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        runtime: ["2.0.2", "2.0.3"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Install isolated native runtime
+        run: npm install --prefix "$RUNNER_TEMP/native-runtime" --no-audit --no-fund @opencode/cli@${{ matrix.runtime }}
+      - name: Verify installed tarball in native runtime
+        run: node scripts/test-package.mjs "$RUNNER_TEMP/native-runtime/node_modules/@opencode/cli/bin/opencode.exe"
+      - name: Verify native npm spec activation through fixture registry
+        run: |
+          version=$(node -p "require('./package.json').version")
+          node scripts/test-native.mjs "$RUNNER_TEMP/native-runtime/node_modules/@opencode/cli/bin/opencode.exe" "$GITHUB_WORKSPACE" "--npm-spec=opencode-ask-github@$version"
+          node scripts/test-native.mjs "$RUNNER_TEMP/native-runtime/node_modules/@opencode/cli/bin/opencode.exe" "$GITHUB_WORKSPACE" --npm-spec=opencode-ask-github@opencode-v2
+      - name: Verify v2 range rejects prereleases
+        run: node scripts/test-native.mjs "$RUNNER_TEMP/native-runtime/node_modules/@opencode/cli/bin/opencode.exe" "$GITHUB_WORKSPACE" --npm-spec=opencode-ask-github@v2 --expect-v2-resolution-failure
 
   publish:
-    needs: checks
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/opencode-v2'
+    needs: [checks, native]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/v2'
     runs-on: ubuntu-latest
     environment: npm
     permissions:
@@ -46,7 +79,7 @@ jobs:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           bun run release:check
-          test "$GITHUB_REF" = "refs/heads/opencode-v2"
+          test "$GITHUB_REF" = "refs/heads/v2"
       - name: Re-run release checks
         run: bun run check
       - name: Setup Node.js for npm trusted publishing

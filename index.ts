@@ -1,4 +1,4 @@
-import { Plugin } from "@opencode-ai/plugin";
+import * as Plugin from "@opencode/plugin/promise/plugin";
 import { renderAskUsage, renderUnresolvedRepo } from "./src/commands/ask.js";
 import { renderRepoList } from "./src/commands/list.js";
 import { removeRepository } from "./src/commands/remove.js";

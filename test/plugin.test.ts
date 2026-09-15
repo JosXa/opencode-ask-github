@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Plugin } from "@opencode-ai/plugin";
+import type { Plugin } from "@opencode/plugin";
 import AskGithubPlugin, { createAskGithubPlugin, type PluginDependencies } from "../index";
 import type { ClonedRepo, Config, RepoInfo } from "../src/types";
 

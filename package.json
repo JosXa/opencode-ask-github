@@ -4,7 +4,11 @@
   "description": "GitHub repository management plugin for OpenCode - auto-clone repos and analyze with AI",
   "type": "module",
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/JosXa/opencode-ask-github.git"
@@ -24,16 +28,23 @@
     "repository"
   ],
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "tag": "opencode-v2"
   },
   "engines": {
-    "bun": ">=1.0.0"
+    "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && bun scripts/build.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "check": "bun run format:check && bun run typecheck && bun test && bun run build && bun run release:check",
+    "test:node": "node scripts/test-node.mjs",
+    "test:package": "node scripts/test-package.mjs",
+    "test:build-path": "node scripts/test-build-path.mjs",
+    "test:lockfile": "node scripts/test-lockfile.mjs",
+    "check": "bun run lock:check && bun run format:check && bun run typecheck && bun test && bun run build && bun run test:node && bun run release:check",
+    "lock:check": "node scripts/normalize-lockfile.mjs",
+    "lock:normalize": "node scripts/normalize-lockfile.mjs --write",
     "release:check": "node scripts/check-release.mjs",
     "format:check": "biome check .",
     "format:fix": "biome check --write ."
@@ -43,10 +54,9 @@
   ],
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
+    "@opencode/plugin": "2.0.2",
     "@types/bun": "^1.2.0",
+    "@types/node": "^20.19.0",
     "typescript": "^5.8.0"
-  },
-  "dependencies": {
-    "@opencode-ai/plugin": "0.0.0-beta-19157"
   }
 }

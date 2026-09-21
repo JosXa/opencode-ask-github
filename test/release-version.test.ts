@@ -17,13 +17,16 @@ function validate(version: string, requestedVersion = version) {
 
 describe("OpenCode V2 release version guard", () => {
   test.each([
-    "0.0.0-opencode-v2",
-    "1.2.3-opencode-v2",
-    "10.20.30-opencode-v2",
+    "0.0.0-opencode-v2.1",
+    "1.2.3-opencode-v2.2",
+    "10.20.30-opencode-v2.10",
   ])("accepts strict SemVer core version %s", (version) =>
     expect(validate(version).status).toBe(0));
 
   test.each([
+    "1.2.3-opencode-v2",
+    "1.2.3-opencode-v2.01",
+    "1.2.3-opencode-v2.0",
     "01.2.3-opencode-v2",
     "1.02.3-opencode-v2",
     "1.2.03-opencode-v2",

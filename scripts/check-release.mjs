@@ -5,7 +5,7 @@ const version =
   process.env.NODE_ENV === "test" && process.env.OPENCODE_RELEASE_VERSION_TEST
     ? process.env.OPENCODE_RELEASE_VERSION_TEST
     : manifest.version;
-const openCodeV2Version = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-opencode-v2$/;
+const openCodeV2Version = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-opencode-v2\.[1-9]\d*$/;
 
 if (manifest.name !== "opencode-ask-github") {
   throw new Error(`unexpected package: ${manifest.name}`);

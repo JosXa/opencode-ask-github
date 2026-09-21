@@ -210,7 +210,7 @@ try {
   for (let attempt = 0; attempt < 150; attempt++) {
     if (server.exitCode !== null) throw new Error(logs);
     try {
-      await api("GET", "health");
+      await api("GET", "info");
       healthy = true;
       break;
     } catch {
@@ -218,8 +218,17 @@ try {
     }
   }
   assert.ok(healthy, logs);
-  await api("POST", `plugin/await-activation?directory=${encodeURIComponent(sandbox.cwd)}`);
-  const plugins = await api("GET", `plugin?directory=${encodeURIComponent(sandbox.cwd)}`);
+  let plugins;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    plugins = await api("GET", `plugin?location[directory]=${encodeURIComponent(sandbox.cwd)}`);
+    if (
+      plugins.data.some(
+        (plugin) => plugin.id === "opencode-ask-github" || plugin.state.status === "failed",
+      )
+    )
+      break;
+    await delay(100);
+  }
   await writeFile(join(sandbox.root, "plugins.json"), JSON.stringify(plugins, null, 2));
   if (rejectV2) {
     const failed = plugins.data.filter((item) => item.source.target === npmSpec);
@@ -247,7 +256,10 @@ try {
     } else {
       assert.equal(await realpath(plugin[0].source.path), await realpath(artifact));
     }
-    const commandList = await api("GET", `command?directory=${encodeURIComponent(sandbox.cwd)}`);
+    const commandList = await api(
+      "GET",
+      `command?location[directory]=${encodeURIComponent(sandbox.cwd)}`,
+    );
     await writeFile(join(sandbox.root, "commands.json"), JSON.stringify(commandList, null, 2));
     for (const name of ["gh-ask", "gh-list", "gh-remove"])
       assert.ok(JSON.stringify(commandList).includes(`"${name}"`));
@@ -288,14 +300,14 @@ try {
         location: { directory: sandbox.cwd },
       });
       await api("POST", `session/${session.id}/command`, {
-        command,
+        name: command,
         text: command === "gh-list" ? "" : "fixture",
         agent: "build",
       });
       let passed = false;
       for (let n = 0; n < 150; n++) {
         if (failure) throw failure;
-        const messages = await api("GET", `session/${session.id}/message`);
+        const messages = await api("GET", `session/${session.id}/context`);
         await writeFile(join(sandbox.root, `${command}.json`), JSON.stringify(messages, null, 2));
         if (JSON.stringify(messages).includes("ASK_GITHUB_NATIVE_PASS")) {
           passed = true;

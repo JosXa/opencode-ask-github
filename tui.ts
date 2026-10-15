@@ -1,4 +1,4 @@
-import { Plugin } from "@opencode-ai/plugin/tui";
+import { Plugin } from "@opencode/plugin/tui";
 import { jsx } from "@opentui/solid/jsx-runtime";
 import { createEffect, createSignal, onCleanup } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
@@ -44,7 +44,7 @@ export default Plugin.define({
             return Object.values(pending[input.sessionID] ?? {}).map((text) =>
               jsx("text", {
                 get fg() {
-                  return ctx.theme.text.subdued;
+                  return ctx.theme.text.muted;
                 },
                 get children() {
                   return `${frames[frame()]} ${text}`;

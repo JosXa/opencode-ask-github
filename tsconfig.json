@@ -9,10 +9,10 @@
     "declaration": true,
     "declarationMap": true,
     "noEmit": true,
-    "types": ["node"],
+    "types": ["bun-types", "node"],
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true
   },
-  "include": ["index.ts", "src/**/*.ts"],
-  "exclude": ["node_modules", "src/**/*.test.ts"]
+  "include": ["index.ts", "tui.ts", "src/**/*.ts", "test/**/*.ts"],
+  "exclude": ["node_modules"]
 }

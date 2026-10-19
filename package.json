@@ -1,10 +1,20 @@
 {
   "name": "opencode-ask-github",
-  "version": "1.0.2",
+  "version": "1.0.2-opencode-v2",
   "description": "GitHub repository management plugin for OpenCode - auto-clone repos and analyze with AI",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./tui": {
+      "types": "./dist/tui.d.ts",
+      "default": "./dist/tui.js"
+    }
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/JosXa/opencode-ask-github.git"
@@ -27,13 +37,14 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=20"
+    "bun": ">=1.0.0"
   },
   "scripts": {
-    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && bun build ./index.ts --outfile ./dist/index.js --target node --external @opencode-ai/plugin",
-    "typecheck": "tsgo --noEmit",
-    "lint": "biome check --error-on-warnings .",
-    "ai:check": "biome check --write --error-on-warnings . && tsgo --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "check": "bun run format:check && bun run typecheck && bun test && bun run build && bun run release:check",
+    "release:check": "node scripts/check-release.mjs",
     "format:check": "biome check .",
     "format:fix": "biome check --write ."
   },
@@ -42,12 +53,19 @@
   ],
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
-    "@opencode-ai/plugin": "^1.17.8",
-    "@typescript/native-preview": "latest",
-    "@types/node": "^22",
+    "@opencode/theme": "2.0.30",
+    "@opentui/core": "0.5.17",
+    "@opentui/solid": "0.5.17",
+    "@types/bun": "^1.2.0",
+    "solid-js": "1.9.12",
     "typescript": "^5.8.0"
   },
+  "dependencies": {
+    "@opencode/plugin": "2.0.30"
+  },
   "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.0.0"
+    "@opentui/core": ">=0.5.17",
+    "@opentui/solid": ">=0.5.17",
+    "solid-js": ">=1.9.0"
   }
 }

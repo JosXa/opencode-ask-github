@@ -1,12 +1,7 @@
-import type { PluginInput } from "@opencode-ai/plugin";
-
 export type AliasMap = Record<string, string>;
 
 export interface PromptConfig {
-  /**
-   * The subagent suggested in tool results for repository exploration.
-   * Default: "explore"
-   */
+  /** The subagent suggested in tool results for repository exploration. */
   agent: string;
 }
 
@@ -27,11 +22,4 @@ export interface ClonedRepo {
   repo: string;
   path: string;
   lastModified: Date;
-}
-
-export interface CommandContext {
-  client: PluginInput["client"];
-  $: PluginInput["$"];
-  directory: string;
-  sessionId: string;
 }

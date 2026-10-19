@@ -11,21 +11,29 @@ GitHub repository exploration plugin for OpenCode V2. Clones repositories on-dem
 
 ## Installation
 
-Install the OpenCode V2 prerelease via npm/bun:
+This plugin requires OpenCode V2. Add it with the OpenCode CLI:
 
 ```bash
-bun add opencode-ask-github@1.0.2-opencode-v2
-# or
-npm install opencode-ask-github@1.0.2-opencode-v2
+opencode plugin add opencode-ask-github
 ```
 
-Or add manually to your OpenCode configuration (`~/.config/opencode/config.json`):
+Or add it to the `plugins` array of your OpenCode config (`opencode.json`):
 
 ```json
 {
-  "plugin": ["opencode-ask-github@1.0.2-opencode-v2"]
+  "plugins": ["opencode-ask-github"]
 }
 ```
+
+The object form works as well:
+
+```json
+{
+  "plugins": [{ "package": "opencode-ask-github" }]
+}
+```
+
+OpenCode loads the server plugin and the `./tui` export from the same package. Repository operations need `git` on `PATH` and SSH access to GitHub.
 
 ## Commands
 
